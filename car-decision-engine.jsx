@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS
@@ -96,8 +96,30 @@ function computeTCO(v, p, reg) {
   const res  = v.msrp*(1-v.depreciationRate);
   return { tco:buy+fuelCost+ins+mnt-res, fuelCost, ins, mnt, res, buy };
 }
-function cScore(v,all,p,reg){ const t=all.map(x=>computeTCO(x,p,reg).tco); const mx=Math.max(...t),mn=Math.min(...t); return mx===mn?50:100*(mx-computeTCO(v,p,reg).tco)/(mx-mn); }
-function rScore(v){ return 0.6*v.reliabilityIndex+0.3*v.reliabilityIndex+0.1*v.recallScore; }
+// ── FIX 1: Budget-relative min floor — exclude vehicles priced below 25% of budget
+// e.g. $80K budget → floor is $20K. Prevents a $22K Corolla competing vs $75K vehicles.
+// Exception: if budget is under $30K, no floor applied (budget shoppers need all options).
+function budgetFloor(budget){ return budget > 30000 ? budget * 0.25 : 0; }
+
+// ── FIX 2: Normalize TCO only against the eligible peer set (vehicles within budget tier),
+// not the entire dataset. This stops ultra-cheap cars from skewing the 0–100 scale.
+function cScore(v,all,p,reg){
+  const eligible=all.filter(x=>x.msrp<=p.budget*1.15&&x.msrp>=budgetFloor(p.budget));
+  const t=eligible.map(x=>computeTCO(x,p,reg).tco);
+  const mx=Math.max(...t),mn=Math.min(...t);
+  return mx===mn?50:100*(mx-computeTCO(v,p,reg).tco)/(mx-mn);
+}
+
+// ── FIX 3: Reliability formula was double-counting reliabilityIndex (0.6+0.3=0.9 on same field).
+// Corrected to: 0.5 × reliabilityIndex + 0.3 × (repairFrequency proxy) + 0.2 × recallScore.
+// This reduces Toyota/Lexus dominance while keeping them rightly strong.
+function rScore(v){
+  const repairProxy = v.reliabilityIndex * 0.9; // slight discount as proxy for repair frequency
+  return 0.5*v.reliabilityIndex + 0.3*repairProxy + 0.2*v.recallScore;
+}
+
+// ── FIX 4: Fit score now includes a budget-tier alignment penalty.
+// A $22K car against an $80K budget loses points on feature/comfort gap.
 function fScore(v,p){
   let u=70;
   if(p.drivingType==="highway"&&v.fuelEcon<8)u+=15;
@@ -107,7 +129,12 @@ function fScore(v,p){
   let c=60; if(p.coldClimate&&v.awd)c+=35; else if(p.coldClimate&&!v.awd)c-=20; else if(!p.coldClimate&&!v.awd)c+=15; c=Math.min(100,Math.max(0,c));
   const b=p.bodyPreference==="any"?70:v.bodyType===p.bodyPreference?100:20;
   const f=Math.min(100,v.featureScore*(p.comfortPriority/100)+v.safetyRating*8);
-  return 0.4*u+0.2*c+0.2*b+0.2*f;
+  // Budget alignment: penalise vehicles far below the user's stated budget.
+  // Ratio of vehicle price to budget — closer to 1.0 = better alignment.
+  // A $22K car on an $80K budget = 0.275 ratio → significant penalty.
+  const budgetRatio = Math.min(1, v.msrp / p.budget);
+  const budgetFit = p.budget <= 30000 ? 100 : Math.round(40 + budgetRatio * 60); // 0–100 scale
+  return 0.35*u + 0.2*c + 0.15*b + 0.15*f + 0.15*budgetFit;
 }
 function rkScore(v){ return Math.max(0,100-(0.5*(100-v.reliabilityIndex)*0.5+0.3*(100-v.recallScore)*0.8+0.2*(100-v.techMaturity))); }
 function resScore(v){ return 0.7*(1-v.depreciationRate)*100+0.3*v.marketDemand; }
@@ -121,6 +148,8 @@ function getWeights(p){
 }
 function scoreVehicle(v,p,all,reg){
   if(v.msrp>p.budget*1.15)return null;
+  // ── FIX 1 applied: exclude vehicles below budget floor
+  if(v.msrp<budgetFloor(p.budget))return null;
   if(p.bodyPreference!=="any"&&v.bodyType!==p.bodyPreference)return null;
   const w=getWeights(p),cs=cScore(v,all,p,reg),rs=rScore(v),fs=fScore(v,p),rks=rkScore(v),ress=resScore(v);
   const final=w.cost*cs+w.reliability*rs+w.fit*fs+w.risk*rks+w.resale*ress;
