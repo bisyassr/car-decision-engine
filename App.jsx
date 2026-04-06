@@ -99,7 +99,7 @@ function computeTCO(v, p, reg) {
 // ── FIX 1: Budget-relative min floor — exclude vehicles priced below 25% of budget
 // e.g. $80K budget → floor is $20K. Prevents a $22K Corolla competing vs $75K vehicles.
 // Exception: if budget is under $30K, no floor applied (budget shoppers need all options).
-function budgetFloor(budget){ return budget > 30000 ? budget * 0.25 : 0; }
+function budgetFloor(budget){ return budget > 30000 ? budget * 0.30 : 0; }
 
 // ── FIX 2: Normalize TCO only against the eligible peer set (vehicles within budget tier),
 // not the entire dataset. This stops ultra-cheap cars from skewing the 0–100 scale.
@@ -817,6 +817,84 @@ function EVHybridTab({profile}){
 // ─────────────────────────────────────────────────────────────
 // MAIN APP
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// EMPTY STATE — No results found
+// ─────────────────────────────────────────────────────────────
+function NoResultsScreen({profile, onAdjust}){
+  const cheapest = 21000;
+  const budgetTooLow = profile.budget < cheapest;
+  const hasBodyFilter = profile.bodyPreference !== "any";
+  const tips = [];
+  if(budgetTooLow) tips.push({
+    icon:"💰",
+    title:"Increase your budget",
+    body:"Our dataset starts at $21,000 (2022 Honda Civic LX). A minimum of $22,000 unlocks the first eligible vehicles.",
+  });
+  if(hasBodyFilter) tips.push({
+    icon:"🔄",
+    title:"Widen the body type filter",
+    body:`You selected "${profile.bodyPreference}" only. Switching to "No Preference" opens the search to all 51 vehicles.`,
+  });
+  tips.push({
+    icon:"📅",
+    title:"Adjust ownership years",
+    body:"A longer ownership horizon shifts the TCO calculation and can surface vehicles that break even differently.",
+  });
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px",textAlign:"center"}}>
+      <div style={{width:80,height:80,borderRadius:"50%",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:32,marginBottom:28}}>
+        🔍
+      </div>
+      <h2 style={{margin:"0 0 14px",fontSize:26,fontWeight:900,color:C.text,letterSpacing:"-0.03em",maxWidth:480,lineHeight:1.2}}>
+        No matches found for your profile
+      </h2>
+      <p style={{margin:"0 0 8px",fontSize:15,color:C.muted,maxWidth:460,lineHeight:1.75}}>
+        {budgetTooLow
+          ? (<>Your budget of <strong style={{color:C.gold}}>{fmt(profile.budget)}</strong> is below the starting price of any vehicle in our dataset. The cheapest option is the <strong style={{color:C.text}}>2022 Honda Civic at $21,000</strong>.</>)
+          : (<>With a budget of <strong style={{color:C.gold}}>{fmt(profile.budget)}</strong> and your current filters, the engine found <strong style={{color:"#ef4444"}}>0 eligible vehicles</strong>. A few small tweaks will open things up.</>)
+        }
+      </p>
+      <p style={{margin:"0 0 36px",fontSize:12,color:C.dim,fontFamily:"monospace",letterSpacing:"0.04em"}}>
+        Budget ceiling: {fmt(Math.round(profile.budget*1.15))} · Floor: {fmt(Math.round(Math.max(profile.budget*0.25,0)))} · Body: {profile.bodyPreference} · {profile.province}
+      </p>
+
+      <div style={{width:"100%",maxWidth:500,display:"flex",flexDirection:"column",gap:10,marginBottom:36,textAlign:"left"}}>
+        <p style={{fontSize:10,color:C.muted,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>
+          What to try
+        </p>
+        {tips.map((t,i)=>(
+          <div key={i} style={{background:C.surface,border:"1px solid "+C.border,borderRadius:12,padding:"15px 18px",display:"flex",gap:14,alignItems:"flex-start"}}>
+            <span style={{fontSize:20,flexShrink:0,marginTop:2}}>{t.icon}</span>
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>{t.title}</div>
+              <div style={{fontSize:13,color:C.muted,lineHeight:1.6}}>{t.body}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {budgetTooLow&&(
+        <div style={{width:"100%",maxWidth:500,padding:"14px 18px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:12,textAlign:"left",marginBottom:28}}>
+          <p style={{margin:"0 0 5px",fontSize:10,color:C.gold,fontFamily:"monospace",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em"}}>
+            💡 Good news
+          </p>
+          <p style={{margin:0,fontSize:13,color:"#94a3b8",lineHeight:1.65}}>
+            At <strong style={{color:C.text}}>$22,000–$26,000</strong> the engine can find great options like the 2022 Toyota Corolla (reliability 89/100) and 2022 Honda Civic — both with 5-year TCOs under $35,000 and strong resale value.
+          </p>
+        </div>
+      )}
+
+      <div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
+        <button onClick={onAdjust} style={{padding:"14px 32px",background:"linear-gradient(135deg,#3b82f6,#2563eb)",border:"none",borderRadius:12,fontSize:14,fontWeight:800,color:"#fff",fontFamily:"monospace",cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.08em",boxShadow:"0 4px 20px rgba(59,130,246,0.35)"}}>
+          ← Adjust My Profile
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function CarDecisionEngine(){
   const [screen,setScreen]=useState("landing"); // landing | onboarding | analyzing | results
   const [tab,setTab]=useState("results");
@@ -833,8 +911,14 @@ export default function CarDecisionEngine(){
     setScreen("analyzing");
     await new Promise(r=>setTimeout(r,3800));
     const scored=runEngine(p);
+    if(scored.length===0){
+      setResults({top3:[],all:[],empty:true,usedProfile:p});
+      setScreen("results");
+      setTab("results");
+      return;
+    }
     const top3=scored.slice(0,3);
-    setResults({top3,all:scored});
+    setResults({top3,all:scored,empty:false,usedProfile:p});
     setScreen("results");
     setTab("results");
     const exps=await genExplanations(top3,p);
@@ -886,7 +970,12 @@ export default function CarDecisionEngine(){
   // ── ANALYZING ──
   if(screen==="analyzing") return <AnalysisScreen/>;
 
-  // ── RESULTS ──
+  // ── RESULTS — empty state gets its own full-screen render ──
+  if(screen==="results" && results && results.empty){
+    return <NoResultsScreen profile={results.usedProfile} onAdjust={()=>{ setResults(null); setScreen("onboarding"); }}/>;
+  }
+
+  // ── RESULTS — normal ──
   return(
     <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"Georgia,serif"}}>
       {/* Header */}
