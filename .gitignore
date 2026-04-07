@@ -1,2 +1,7 @@
 # Local Netlify folder
 .netlify
+
+# Secrets (use env.example as template)
+.env
+.env.local
+.env.*.local

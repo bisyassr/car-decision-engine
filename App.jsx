@@ -197,8 +197,14 @@ function buildScorecard(ev,hy,reg,p){
 // ─────────────────────────────────────────────────────────────
 async function callClaude(prompt,max_tokens=800){
   try{
-    const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens,messages:[{role:"user",content:prompt}]})});
-    const d=await r.json(); return d.content?.find(b=>b.type==="text")?.text||"";
+    const r=await fetch("/.netlify/functions/claude-proxy",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({prompt,max_tokens}),
+    });
+    const d=await r.json();
+    if(!r.ok)return "";
+    return typeof d.text==="string"?d.text:"";
   }catch{return "";}
 }
 async function genExplanations(top3,profile){
@@ -232,7 +238,7 @@ function Pill({label,color="#3b82f6"}){
 function StatBox({label,value,sub,accent=C.gold}){
   return(
     <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px"}}>
-      <div style={{fontSize:10,color:C.muted,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>{label}</div>
+      <div style={{fontSize:11,color:C.muted,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:4}}>{label}</div>
       <div style={{fontSize:20,fontWeight:900,color:accent,fontFamily:"monospace"}}>{value}</div>
       {sub&&<div style={{fontSize:11,color:C.dim,fontFamily:"monospace",marginTop:2}}>{sub}</div>}
     </div>
@@ -335,9 +341,10 @@ function OnboardingWizard({profile,setProfile,onComplete}){
   };
 
   return(
-    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column"}}>
+    <div style={{minHeight:"100vh",background:C.bg,display:"flex",flexDirection:"column",overflow:"hidden",width:"100%"}}>
+      <style>{`*,*::before,*::after{box-sizing:border-box}body,html{overflow-x:hidden;max-width:100vw}`}</style>
       {/* Top bar */}
-      <div style={{padding:"20px 24px",display:"flex",alignItems:"center",gap:16}}>
+      <div style={{padding:"20px 20px",display:"flex",alignItems:"center",gap:16,boxSizing:"border-box",width:"100%"}}>
         <div style={{flex:1,height:3,background:C.border,borderRadius:2,overflow:"hidden"}}>
           <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${C.accent},${C.gold})`,borderRadius:2,transition:"width 0.4s ease"}}/>
         </div>
@@ -345,7 +352,7 @@ function OnboardingWizard({profile,setProfile,onComplete}){
       </div>
 
       {/* Content */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:"0 24px 40px",maxWidth:640,margin:"0 auto",width:"100%"}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:"0 20px 40px",maxWidth:640,margin:"0 auto",width:"100%",boxSizing:"border-box",minWidth:0}}>
         <div style={{marginBottom:32}}>
           <h2 style={{margin:"0 0 10px",fontSize:26,fontWeight:900,color:C.text,letterSpacing:"-0.03em",lineHeight:1.2}}>{s.title}</h2>
           <p style={{margin:0,fontSize:14,color:C.muted,lineHeight:1.6}}>{s.sub}</p>
@@ -359,7 +366,7 @@ function OnboardingWizard({profile,setProfile,onComplete}){
             <input type="range" min={s.min} max={s.max} step={s.step} value={val}
               onChange={e=>setProfile(p=>({...p,[s.field]:+e.target.value}))}
               style={{width:"100%",accentColor:C.accent,marginBottom:20}}/>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:28}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6,marginBottom:28,width:"100%",boxSizing:"border-box"}}>
               {s.presets.map(pr=>(
                 <button key={pr.l} onClick={()=>setProfile(p=>({...p,[s.field]:pr.v}))}
                   style={{background:val===pr.v?C.accent:C.surface,border:`1px solid ${val===pr.v?C.accent:C.border}`,borderRadius:8,padding:"8px 4px",fontSize:11,color:val===pr.v?"#fff":C.muted,fontFamily:"monospace",cursor:"pointer",transition:"all 0.2s"}}>
@@ -374,18 +381,18 @@ function OnboardingWizard({profile,setProfile,onComplete}){
         )}
 
         {s.type==="choice"&&(
-          <div style={{display:"grid",gridTemplateColumns:s.choices.length>4?"1fr 1fr":"1fr",gap:10}}>
+          <div style={{display:"grid",gridTemplateColumns:s.choices.length>4?"1fr 1fr":"1fr",gap:10,width:"100%",minWidth:0}}>
             {s.choices.map(ch=>{
               const active=val===ch.v||val===(ch.v===true?"yes":ch.v===false?"no":ch.v);
               const isActive=profile[s.field]===ch.v;
               return(
                 <button key={String(ch.v)} onClick={()=>pick(ch.v)}
-                  style={{background:isActive?`${C.accent}18`:C.surface,border:`1.5px solid ${isActive?C.accent:C.border}`,borderRadius:12,padding:"16px 18px",textAlign:"left",cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{flex:1}}>
+                  style={{background:isActive?`${C.accent}18`:C.surface,border:`1.5px solid ${isActive?C.accent:C.border}`,borderRadius:12,padding:"14px 14px",textAlign:"left",cursor:"pointer",transition:"all 0.2s",display:"flex",alignItems:"center",gap:10,width:"100%",boxSizing:"border-box",minWidth:0}}>
+                  <div style={{flex:1,minWidth:0}}>
                     <div style={{fontSize:15,fontWeight:700,color:isActive?C.text:C.muted,marginBottom:2}}>{ch.l}</div>
                     {ch.d&&<div style={{fontSize:12,color:C.dim}}>{ch.d}</div>}
                   </div>
-                  <div style={{width:20,height:20,borderRadius:"50%",border:`2px solid ${isActive?C.accent:C.border}`,background:isActive?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <div style={{width:22,height:22,borderRadius:"50%",border:`2px solid ${isActive?C.accent:C.border}`,background:isActive?C.accent:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxSizing:"border-box"}}>
                     {isActive&&<div style={{width:8,height:8,borderRadius:"50%",background:"#fff"}}/>}
                   </div>
                 </button>
@@ -397,7 +404,7 @@ function OnboardingWizard({profile,setProfile,onComplete}){
 
       {/* Back */}
       {step>0&&(
-        <div style={{padding:"0 24px 24px",textAlign:"center"}}>
+        <div style={{padding:"0 20px 24px",textAlign:"center",boxSizing:"border-box",width:"100%"}}>
           <button onClick={()=>go(-1)} style={{background:"none",border:"none",color:C.dim,fontFamily:"monospace",fontSize:13,cursor:"pointer"}}>← Back</button>
         </div>
       )}
@@ -462,14 +469,14 @@ function HeroCard({result:r,explanation:ex,tcoSavings,betterThanPct}){
           </div>
           <div style={{textAlign:"right"}}>
             <div style={{fontSize:52,fontWeight:900,color:C.green,fontFamily:"monospace",lineHeight:1}}>{r.finalScore}</div>
-            <div style={{fontSize:10,color:C.muted,fontFamily:"monospace",textTransform:"uppercase"}}>Match Score</div>
+            <div style={{fontSize:11,color:C.muted,fontFamily:"monospace",textTransform:"uppercase"}}>Match Score</div>
           </div>
         </div>
 
         {/* Insight pills */}
         <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:18}}>
           {tcoSavings>0&&<div style={{background:`${C.green}18`,border:`1px solid ${C.green}30`,borderRadius:8,padding:"8px 12px",fontSize:12,color:C.green,fontWeight:700}}>💰 Save {fmt(tcoSavings)} over 5 years</div>}
-          {betterThanPct>0&&<div style={{background:`${C.blue}18`,border:`1px solid ${C.accent}30`,borderRadius:8,padding:"8px 12px",fontSize:12,color:C.accent,fontWeight:700}}>🛡 Better reliability than {betterThanPct}% of similar vehicles</div>}
+          {betterThanPct>0&&<div style={{background:`${C.accent}18`,border:`1px solid ${C.accent}30`,borderRadius:8,padding:"8px 12px",fontSize:12,color:C.accent,fontWeight:700}}>🛡 Better reliability than {betterThanPct}% of similar vehicles</div>}
           <div style={{background:`${C.gold}18`,border:`1px solid ${C.gold}30`,borderRadius:8,padding:"8px 12px",fontSize:12,color:C.gold,fontWeight:700}}>📍 Best value in {r.vehicle.awd?"AWD ":""}category</div>
         </div>
 
@@ -483,7 +490,7 @@ function HeroCard({result:r,explanation:ex,tcoSavings,betterThanPct}){
 
       {/* TCO breakdown */}
       <div style={{background:C.surface,borderTop:`1px solid ${C.border}`,padding:"16px 24px"}}>
-        <p style={{margin:"0 0 12px",fontSize:10,color:C.muted,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>5-Year Cost Breakdown · {fmt(r.vehicle.msrp)} MSRP</p>
+        <p style={{margin:"0 0 12px",fontSize:11,color:C.muted,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em"}}>5-Year Cost Breakdown · {fmt(r.vehicle.msrp)} MSRP</p>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
           {[["⛽ Fuel",r.tco.fuelCost,C.gold],["🔧 Maintenance",r.tco.mnt,C.purple],["🏦 Insurance",r.tco.ins,C.accent],["📉 Depreciation",r.vehicle.msrp*r.vehicle.depreciationRate,C.red]].map(([l,v,c])=>(
             <div key={l} style={{textAlign:"center"}}>
@@ -534,7 +541,7 @@ function ComparisonTable({results,explanations}){
           <div style={{background:C.surface,borderRadius:"10px 0 0 0",padding:"10px 12px",borderBottom:`1px solid ${C.border}`,borderRight:`1px solid ${C.border}`}}/>
           {cols.map((r,i)=>(
             <div key={i} style={{background:i===0?`${C.accent}18`:C.surface,padding:"12px 14px",borderBottom:`1px solid ${C.border}`,borderRight:i<cols.length-1?`1px solid ${C.border}`:"none",borderRadius:i===cols.length-1?"0 10px 0 0":"none",borderTop:i===0?`2px solid ${C.accent}`:"none"}}>
-              <div style={{fontSize:10,fontFamily:"monospace",color:rc[i],fontWeight:700,marginBottom:4}}>#{i+1} {rl[i]}</div>
+              <div style={{fontSize:11,fontFamily:"monospace",color:rc[i],fontWeight:700,marginBottom:4}}>#{i+1} {rl[i]}</div>
               <div style={{fontSize:13,fontWeight:800,color:C.text}}>{r.vehicle.make}</div>
               <div style={{fontSize:12,color:C.accent}}>{r.vehicle.model}</div>
             </div>
@@ -583,17 +590,17 @@ function WhatIfPanel({profile,setProfile,onRerun}){
           <p style={{margin:0,fontSize:12,color:C.muted}}>Adjust and re-run instantly</p>
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:16,marginBottom:16}}>
         <div>
-          <label style={{display:"block",fontSize:10,color:C.muted,fontFamily:"monospace",textTransform:"uppercase",marginBottom:6}}>Budget: {fmt(profile.budget)}</label>
+          <label style={{display:"block",fontSize:11,color:C.muted,fontFamily:"monospace",textTransform:"uppercase",marginBottom:6}}>Budget: {fmt(profile.budget)}</label>
           <input type="range" min={15000} max={150000} step={5000} value={profile.budget} onChange={e=>setProfile(p=>({...p,budget:+e.target.value}))} style={{width:"100%",accentColor:C.accent}}/>
         </div>
         <div>
-          <label style={{display:"block",fontSize:10,color:C.muted,fontFamily:"monospace",textTransform:"uppercase",marginBottom:6}}>Annual KM: {profile.annualKm.toLocaleString()}</label>
+          <label style={{display:"block",fontSize:11,color:C.muted,fontFamily:"monospace",textTransform:"uppercase",marginBottom:6}}>Annual KM: {profile.annualKm.toLocaleString()}</label>
           <input type="range" min={5000} max={60000} step={1000} value={profile.annualKm} onChange={e=>setProfile(p=>({...p,annualKm:+e.target.value}))} style={{width:"100%",accentColor:C.accent}}/>
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:10}}>
         <select value={profile.bodyPreference} onChange={e=>setProfile(p=>({...p,bodyPreference:e.target.value}))} style={{...is,fontSize:12,padding:"10px 12px"}}>
           {[["any","Any body type"],["sedan","Sedan"],["suv","SUV"],["truck","Truck"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}
         </select>
@@ -615,7 +622,7 @@ function NextActions({onRedo,onEvTab}){
   return(
     <div style={{marginBottom:24}}>
       <h3 style={{margin:"0 0 14px",fontSize:16,fontWeight:800,color:C.text}}>Next Steps</h3>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:10}}>
         {[
           {icon:"⚡",label:"Compare EV vs Hybrid",sub:"Deep cost analysis",action:onEvTab,accent:C.evBlue},
           {icon:"🔁",label:"Restart with new profile",sub:"Change your inputs",action:onRedo,accent:C.muted},
@@ -642,7 +649,7 @@ function OtherResults({results,explanations}){
     <div style={{marginBottom:24}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
         <h3 style={{margin:0,fontSize:16,fontWeight:800,color:C.text}}>More Matches</h3>
-        <button onClick={()=>setOpen(o=>!o)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 12px",fontSize:11,color:C.muted,fontFamily:"monospace",cursor:"pointer"}}>
+        <button onClick={()=>setOpen(o=>!o)} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",fontSize:11,color:C.muted,fontFamily:"monospace",cursor:"pointer"}}>
           {open?"Show less ▲":"Show all ▼"}
         </button>
       </div>
@@ -721,21 +728,21 @@ function EVHybridTab({profile}){
     <div>
       <div style={{marginBottom:22}}>
         <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-          <Pill label="⚡ EV" color={C.evBlue}/><span style={{fontSize:10,color:C.dim}}>vs</span><Pill label="🌿 Hybrid" color={C.hybGreen}/>
-          <span style={{fontSize:10,color:C.dim,fontFamily:"monospace"}}>{profile.province} · {profile.annualKm.toLocaleString()} km/yr</span>
+          <Pill label="⚡ EV" color={C.evBlue}/><span style={{fontSize:11,color:C.dim}}>vs</span><Pill label="🌿 Hybrid" color={C.hybGreen}/>
+          <span style={{fontSize:11,color:C.dim,fontFamily:"monospace"}}>{profile.province} · {profile.annualKm.toLocaleString()} km/yr</span>
         </div>
         <h2 style={{margin:0,fontSize:22,fontWeight:900,color:C.text,letterSpacing:"-0.02em"}}>EV vs Hybrid Deep Dive</h2>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:18}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:12,marginBottom:18}}>
         <div style={{background:C.surface,border:`1px solid ${C.evBlue}30`,borderRadius:10,padding:14}}>
-          <p style={{margin:"0 0 8px",fontSize:10,color:C.evBlue,fontFamily:"monospace",textTransform:"uppercase"}}>⚡ Select EV</p>
+          <p style={{margin:"0 0 8px",fontSize:11,color:C.evBlue,fontFamily:"monospace",textTransform:"uppercase"}}>⚡ Select EV</p>
           <select value={selEV} onChange={e=>{setSelEV(+e.target.value);setVerdict(null);}} style={{...is,border:`1px solid ${C.evBlue}30`,fontSize:12}}>
             {evs.map((v,i)=><option key={v.id} value={i}>{v.year} {v.make} {v.model} — ${v.msrp.toLocaleString()}</option>)}
           </select>
           <p style={{margin:"7px 0 0",fontSize:11,color:C.muted,fontFamily:"monospace"}}>After ${reg.evIncentive.toLocaleString()} incentive: <span style={{color:C.evBlue,fontWeight:700}}>${(ev.msrp-reg.evIncentive).toLocaleString()}</span></p>
         </div>
         <div style={{background:C.surface,border:`1px solid ${C.hybGreen}30`,borderRadius:10,padding:14}}>
-          <p style={{margin:"0 0 8px",fontSize:10,color:C.hybGreen,fontFamily:"monospace",textTransform:"uppercase"}}>🌿 Select Hybrid</p>
+          <p style={{margin:"0 0 8px",fontSize:11,color:C.hybGreen,fontFamily:"monospace",textTransform:"uppercase"}}>🌿 Select Hybrid</p>
           <select value={selHY} onChange={e=>{setSelHY(+e.target.value);setVerdict(null);}} style={{...is,border:`1px solid ${C.hybGreen}30`,fontSize:12}}>
             {hybrids.map((v,i)=><option key={v.id} value={i}>{v.year} {v.make} {v.model} — ${v.msrp.toLocaleString()}</option>)}
           </select>
@@ -744,34 +751,34 @@ function EVHybridTab({profile}){
       </div>
       <div style={{background:evW?"linear-gradient(135deg,#0d1a2e,#0f172a)":"linear-gradient(135deg,#0a1f16,#0f172a)",border:`1px solid ${evW?C.evBlue+"40":C.hybGreen+"40"}`,borderRadius:12,padding:"16px 20px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
         <div>
-          <p style={{margin:"0 0 4px",fontSize:10,color:C.muted,fontFamily:"monospace",textTransform:"uppercase"}}>5-Year TCO Winner</p>
+          <p style={{margin:"0 0 4px",fontSize:11,color:C.muted,fontFamily:"monospace",textTransform:"uppercase"}}>5-Year TCO Winner</p>
           <p style={{margin:"0 0 4px",fontSize:18,fontWeight:900,color:evW?C.evBlue:C.hybGreen,fontFamily:"monospace"}}>{evW?`${ev.make} ${ev.model} (EV)`:`${hy.make} ${hy.model} (Hybrid)`}</p>
           <p style={{margin:0,fontSize:12,color:C.muted,fontFamily:"monospace"}}>Saves <span style={{color:C.gold,fontWeight:700}}>${Math.round(Math.abs(sc.evT-sc.hyT)).toLocaleString()}</span> over 5 years</p>
         </div>
         <div style={{textAlign:"right",fontFamily:"monospace"}}>
-          <div style={{fontSize:10,color:C.muted}}>EV 5yr TCO</div><div style={{fontSize:16,fontWeight:800,color:C.evBlue}}>{fmt(sc.evT)}</div>
-          <div style={{fontSize:10,color:C.muted,marginTop:6}}>Hybrid 5yr TCO</div><div style={{fontSize:16,fontWeight:800,color:C.hybGreen}}>{fmt(sc.hyT)}</div>
+          <div style={{fontSize:11,color:C.muted}}>EV 5yr TCO</div><div style={{fontSize:16,fontWeight:800,color:C.evBlue}}>{fmt(sc.evT)}</div>
+          <div style={{fontSize:11,color:C.muted,marginTop:6}}>Hybrid 5yr TCO</div><div style={{fontSize:16,fontWeight:800,color:C.hybGreen}}>{fmt(sc.hyT)}</div>
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:18}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:10,marginBottom:18}}>
         {[
           {l:"Breakeven",ev:bk.bkYr?`Yr ${bk.bkYr}`:">10yr",hy:"Day 1",ec:bk.bkYr&&bk.bkYr<=profile.ownershipYears?C.evBlue:C.red,note:bk.bkYr&&bk.bkYr<=profile.ownershipYears?"Within ownership":"Doesn't break even"},
           {l:"Energy/yr",ev:fmt(sc.ef5/5),hy:fmt(sc.hf5/5),ec:sc.ef5<sc.hf5?C.evBlue:"#94a3b8",note:`EV saves ${fmt((sc.hf5-sc.ef5)/5)}/yr`},
           {l:"CO₂ 5yr",ev:sc.co2>0?`-${sc.co2.toFixed(1)}t`:`+${Math.abs(sc.co2).toFixed(1)}t`,hy:"baseline",ec:sc.co2>0?C.evBlue:"#94a3b8",note:`Hybrid emits ${sc.hCO2.toFixed(1)}t`},
         ].map(m=>(
           <div key={m.l} style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px"}}>
-            <p style={{margin:"0 0 8px",fontSize:10,color:C.muted,fontFamily:"monospace",textTransform:"uppercase"}}>{m.l}</p>
+            <p style={{margin:"0 0 8px",fontSize:11,color:C.muted,fontFamily:"monospace",textTransform:"uppercase"}}>{m.l}</p>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
               <span style={{fontSize:12,fontWeight:800,color:m.ec,fontFamily:"monospace"}}>⚡ {m.ev}</span>
               <span style={{fontSize:12,fontWeight:800,color:C.hybGreen,fontFamily:"monospace"}}>🌿 {m.hy}</span>
             </div>
-            <p style={{margin:0,fontSize:10,color:C.dim,fontFamily:"monospace",lineHeight:1.4}}>{m.note}</p>
+            <p style={{margin:0,fontSize:11,color:C.dim,fontFamily:"monospace",lineHeight:1.4}}>{m.note}</p>
           </div>
         ))}
       </div>
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 14px 8px",marginBottom:18}}>
         <p style={{margin:"0 0 2px",fontSize:11,color:C.muted,fontFamily:"monospace",textTransform:"uppercase"}}>Cumulative Cost — 10 Year View</p>
-        <p style={{margin:"0 0 10px",fontSize:10,color:C.dim,fontFamily:"monospace"}}>{bk.bkYr?`EV breakeven at year ${bk.bkYr}`:"Hybrid cheaper throughout"}</p>
+        <p style={{margin:"0 0 10px",fontSize:11,color:C.dim,fontFamily:"monospace"}}>{bk.bkYr?`EV breakeven at year ${bk.bkYr}`:"Hybrid cheaper throughout"}</p>
         <CostChart yrs={bk.yrs} evC={bk.evC} hyC={bk.hyC} bkYr={bk.bkYr}/>
       </div>
       <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:12,padding:16,marginBottom:18}}>
@@ -780,7 +787,7 @@ function EVHybridTab({profile}){
           <div key={d.label} style={{marginBottom:12}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:11,fontFamily:"monospace"}}>
               <span style={{color:C.evBlue,fontWeight:700}}>⚡ {d.ev}</span>
-              <span style={{color:C.muted,fontSize:10,textTransform:"uppercase",letterSpacing:"0.05em"}}>{d.label}</span>
+              <span style={{color:C.muted,fontSize:11,textTransform:"uppercase",letterSpacing:"0.05em"}}>{d.label}</span>
               <span style={{color:C.hybGreen,fontWeight:700}}>🌿 {d.hybrid}</span>
             </div>
             <div style={{display:"flex",gap:3,alignItems:"center"}}>
@@ -806,7 +813,7 @@ function EVHybridTab({profile}){
       </button>
       {verdict&&(
         <div style={{background:`linear-gradient(135deg,#0f172a,#1a1f35)`,border:`1px solid ${C.accent}30`,borderRadius:12,padding:20}}>
-          <p style={{margin:"0 0 12px",fontSize:10,color:C.evBlue,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.12em",fontWeight:700}}>⚡ AI Verdict · {ev.make} {ev.model} vs {hy.make} {hy.model}</p>
+          <p style={{margin:"0 0 12px",fontSize:11,color:C.evBlue,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.12em",fontWeight:700}}>⚡ AI Verdict · {ev.make} {ev.model} vs {hy.make} {hy.model}</p>
           <div style={{fontSize:13,color:"#94a3b8",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{verdict}</div>
         </div>
       )}
@@ -861,7 +868,7 @@ function NoResultsScreen({profile, onAdjust}){
       </p>
 
       <div style={{width:"100%",maxWidth:500,display:"flex",flexDirection:"column",gap:10,marginBottom:36,textAlign:"left"}}>
-        <p style={{fontSize:10,color:C.muted,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>
+        <p style={{fontSize:11,color:C.muted,fontFamily:"monospace",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>
           What to try
         </p>
         {tips.map((t,i)=>(
@@ -877,7 +884,7 @@ function NoResultsScreen({profile, onAdjust}){
 
       {budgetTooLow&&(
         <div style={{width:"100%",maxWidth:500,padding:"14px 18px",background:"rgba(245,158,11,0.07)",border:"1px solid rgba(245,158,11,0.25)",borderRadius:12,textAlign:"left",marginBottom:28}}>
-          <p style={{margin:"0 0 5px",fontSize:10,color:C.gold,fontFamily:"monospace",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em"}}>
+          <p style={{margin:"0 0 5px",fontSize:11,color:C.gold,fontFamily:"monospace",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em"}}>
             💡 Good news
           </p>
           <p style={{margin:0,fontSize:13,color:"#94a3b8",lineHeight:1.65}}>
@@ -979,15 +986,15 @@ export default function CarDecisionEngine(){
   return(
     <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"Georgia,serif"}}>
       {/* Header */}
-      <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"16px 24px 0",position:"sticky",top:0,zIndex:100,backdropFilter:"blur(10px)"}}>
+      <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"16px 16px 0",position:"sticky",top:0,zIndex:100,backdropFilter:"blur(10px)"}}>
         <div style={{maxWidth:720,margin:"0 auto"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,flexWrap:"wrap",gap:8}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div style={{width:8,height:8,background:C.green,borderRadius:"50%",boxShadow:`0 0 8px ${C.green}`}}/>
               <span style={{fontSize:12,fontWeight:700,color:C.text}}>Car Decision Engine</span>
-              <span style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>v2.1 · 51 vehicles</span>
+              <span style={{fontSize:11,color:C.muted,fontFamily:"monospace"}}>v2.1 · 51 vehicles</span>
             </div>
-            <button onClick={()=>setScreen("onboarding")} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"5px 12px",fontSize:11,color:C.muted,fontFamily:"monospace",cursor:"pointer"}}>
+            <button onClick={()=>setScreen("onboarding")} style={{background:"none",border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",fontSize:11,color:C.muted,fontFamily:"monospace",cursor:"pointer"}}>
               ← New Search
             </button>
           </div>
@@ -1015,7 +1022,7 @@ export default function CarDecisionEngine(){
               ].map(([v,l])=>(
                 <div key={l} style={{textAlign:"center"}}>
                   <div style={{fontSize:13,fontWeight:700,color:C.text,fontFamily:"monospace"}}>{v}</div>
-                  <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.06em"}}>{l}</div>
+                  <div style={{fontSize:11,color:C.muted,textTransform:"uppercase",letterSpacing:"0.06em"}}>{l}</div>
                 </div>
               ))}
             </div>
@@ -1043,7 +1050,7 @@ export default function CarDecisionEngine(){
               </p>
               <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                 {Object.entries(results.top3[0]?.weights||{}).map(([k,v])=>(
-                  <span key={k} style={{fontSize:10,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",fontFamily:"monospace",color:C.muted}}>
+                  <span key={k} style={{fontSize:11,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 8px",fontFamily:"monospace",color:C.muted}}>
                     {k}: {Math.round(v*100)}%
                   </span>
                 ))}
